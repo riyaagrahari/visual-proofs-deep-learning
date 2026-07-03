@@ -41,15 +41,35 @@ const COLORS: Record<Category, string> = {
 };
 
 const TEMPLATES = [
-  ["cat", "chase", "dog"],
-  ["dog", "chase", "cat"],
-  ["cow", "eat", "apple"],
-  ["cow", "eat", "mango"],
-  ["dog", "eat", "apple"],
-  ["cat", "eat", "mango"],
-  ["apple", "see", "cow"],
-  ["mango", "see", "dog"],
-  ["banana", "see", "cow"],
+  ["cat","chase","dog"],
+  ["dog","chase","cat"],
+  ["cow","chase","dog"],
+  ["cat","see","dog"],
+  ["dog","see","cow"],
+  ["cow","see","cat"],
+
+  ["cow","eat","apple"],
+  ["cow","eat","banana"],
+  ["cow","eat","mango"],
+  ["dog","eat","apple"],
+  ["dog","eat","banana"],
+  ["cat","eat","mango"],
+
+  ["apple","see","cow"],
+  ["banana","see","dog"],
+  ["mango","see","cat"],
+
+  ["apple","eat","cow"],
+  ["banana","eat","dog"],
+  ["mango","eat","cat"],
+
+  ["cat","see","apple"],
+  ["dog","see","banana"],
+  ["cow","see","mango"],
+
+  ["cat","chase","cow"],
+  ["dog","chase","cow"],
+  ["cow","chase","cat"],
 ];
 
 const TOKEN_TO_INDEX = TOKENS.reduce<Record<string, number>>((acc, token, index) => {
@@ -80,10 +100,10 @@ function generateDataset(sentenceCount: number): DatasetInfo {
 }
 
 export default function EmbeddingExperiment(): React.ReactElement {
-  const [dataset, setDataset] = useState<DatasetInfo>(() => generateDataset(90));
+  const [dataset, setDataset] = useState<DatasetInfo>(() => generateDataset(500));
   const [sentenceCount, setSentenceCount] = useState<number>(90);
   const [embeddingDim, setEmbeddingDim] = useState<number>(8);
-  const [epochs, setEpochs] = useState<number>(25);
+  const [epochs, setEpochs] = useState<number>(100);
   const [batchSize, setBatchSize] = useState<number>(16);
 
   const [epochCount, setEpochCount] = useState<number>(0);
@@ -132,7 +152,7 @@ export default function EmbeddingExperiment(): React.ReactElement {
     );
     model.add(tf.layers.flatten());
     model.add(tf.layers.dense({ units: vocabularySize, activation: "softmax" }));
-    model.compile({ optimizer: tf.train.adam(), loss: "sparseCategoricalCrossentropy" });
+    model.compile({ optimizer: tf.train.adam(0.001), loss: "categoricalCrossentropy", metrics: ["accuracy"] });
     modelRef.current = model;
     setTokenPoints(null);
     setSelectedToken(null);
@@ -147,9 +167,19 @@ export default function EmbeddingExperiment(): React.ReactElement {
     tensorsRef.current?.xs?.dispose?.();
     tensorsRef.current?.ys?.dispose?.();
 
+    const labelTensor = tf.tensor1d(dataset.labels, "int32");
+
+    const oneHot = tf.oneHot(labelTensor, vocabularySize);
+    
+    labelTensor.dispose();
+    
     tensorsRef.current = {
-      xs: tf.tensor2d(dataset.inputs, [dataset.inputs.length, 1], "int32"),
-      ys: tf.tensor1d(dataset.labels, "int32"),
+      xs: tf.tensor2d(
+        dataset.inputs,
+        [dataset.inputs.length, 1],
+        "int32"
+      ),
+      ys: oneHot,
     };
   }
 
@@ -214,6 +244,7 @@ export default function EmbeddingExperiment(): React.ReactElement {
     for (let epoch = 0; epoch < epochs; epoch++) {
       if (stopRef.current) break;
       const history = await modelRef.current.fit(xs, ys, { epochs: 1, batchSize, shuffle: true });
+      await tf.nextFrame();
       const loss = history.history.loss ? (history.history.loss as number[])[0] : NaN;
 
       setEpochCount(epoch + 1);
@@ -261,25 +292,44 @@ export default function EmbeddingExperiment(): React.ReactElement {
     setTokenPoints(points);
   }
 
+  function cosineSimilarity(a: number[], b: number[]): number {
+    const dot = a.reduce((sum, value, index) => sum + value * b[index], 0);
+  
+    const magnitudeA = Math.sqrt(
+      a.reduce((sum, value) => sum + value * value, 0),
+    );
+  
+    const magnitudeB = Math.sqrt(
+      b.reduce((sum, value) => sum + value * value, 0),
+    );
+  
+    return dot / (magnitudeA * magnitudeB + 1e-8);
+  }
+
   function selectToken(pointIndex: number) {
     if (!tokenPoints?.length) return;
+  
     const token = tokenPoints[pointIndex].token;
     setSelectedToken(token);
-
+  
     const selectedIndex = tokenPoints[pointIndex].index;
     const selectedVector = embeddingVectors[selectedIndex];
+  
     if (!selectedVector) return;
-
+  
     const neighbours = embeddingVectors
       .map((vector, index) => ({
         token: TOKENS[index],
-        distance: Math.hypot(...vector.map((v, i) => v - selectedVector[i])),
+        similarity: cosineSimilarity(vector, selectedVector),
       }))
       .filter((item) => item.token !== token)
-      .sort((a, b) => a.distance - b.distance)
+      .sort((a, b) => b.similarity - a.similarity)
       .slice(0, 3)
-      .map((item) => item.token);
-
+      .map(
+        (item) =>
+          `${item.token} (${(item.similarity * 100).toFixed(1)}%)`,
+      );
+  
     setNearestNeighbours(neighbours);
   }
 
