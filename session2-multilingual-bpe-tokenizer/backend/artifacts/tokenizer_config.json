@@ -1,0 +1,39 @@
+{
+  "target_vocab_size": 10000,
+  "achieved_vocab_size": 10000,
+  "languages": [
+    "en",
+    "hi",
+    "te",
+    "ta"
+  ],
+  "alpha": 0.3,
+  "language_boosts": {
+    "en": 3.0,
+    "te": 1.5
+  },
+  "num_merges": 9699,
+  "training_seconds": 2.85,
+  "language_stats": {
+    "en": {
+      "num_documents": 1,
+      "raw_word_count": 12296,
+      "weight": 2.5348
+    },
+    "hi": {
+      "num_documents": 1,
+      "raw_word_count": 9203,
+      "weight": 1.0349
+    },
+    "te": {
+      "num_documents": 1,
+      "raw_word_count": 3157,
+      "weight": 3.2828
+    },
+    "ta": {
+      "num_documents": 1,
+      "raw_word_count": 12643,
+      "weight": 0.8286
+    }
+  }
+}
