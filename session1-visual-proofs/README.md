@@ -1,75 +1,69 @@
-# React + TypeScript + Vite
+# Visual Proofs of Deep Learning
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Four interactive, in-browser experiments that each **prove** a core deep-learning
+claim by letting you watch it happen — no hand-waving, no citations. Every model
+trains live in your browser with [TensorFlow.js](https://www.tensorflow.org/js);
+the visualizations are the argument.
 
-Currently, two official plugins are available:
+**Live demo:** https://riyaagraharidev.netlify.app/
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## The four proofs
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| # | Route | Claim | The proof you see |
+|---|---|---|---|
+| 1 | `/relu` | **Activations exist for a reason** | A model with no nonlinearity can only draw a straight boundary, so it can't separate two interleaved rings. Linear + sigmoid gets stuck near **55%**; add a single ReLU hidden layer and the boundary wraps the ring to **~99%** — only the activation changed. |
+| 2 | `/depth` | **Depth without nonlinearity is a lie** | Five stacked *linear* layers collapse to a single linear map. A 1-layer and a 5-linear-layer net produce identical accuracy and identical (straight) boundaries. Insert ReLUs and it suddenly solves the ring — and the five weight matrices multiply into exactly one. |
+| 3 | `/embeddings` | **Embeddings learn similarity from nothing but next-token** | Trained *only* to predict the next token in a tiny synthetic grammar, the embedding table clusters related tokens. Animals, fruits, and verbs land in their own clusters after a 2D projection — even though similarity was never supplied as a label. |
+| 4 | `/generalization` | **Memorization vs. generalization, and data closes the gap** | With 20 / 200 / 2000 training samples, watch the train-vs-test generalization gap shrink as data grows — memorization gives way to generalization. |
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Tech stack
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- **React 19** + **TypeScript** + **Vite**
+- **TensorFlow.js** — all models train in-browser, no backend
+- **Plotly.js** / **D3** — decision boundaries, embedding scatter plots, loss curves
+- **Framer Motion** — transitions
+- **Tailwind CSS** — styling
+- **React Router** — one page per proof (routes lazy-loaded)
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Getting started
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
+npm run dev        # http://localhost:5173
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Other scripts:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+npm run build      # type-check (tsc -b) + production build to dist/
+npm run preview    # serve the production build locally
+npm run lint       # eslint
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Project structure
 
 ```
+session1-visual-proofs/
+├── src/
+│   ├── App.tsx                 # routes: /, /relu, /depth, /embeddings, /generalization
+│   ├── pages/                  # one page per proof + Home + NotFound
+│   │   ├── ReLUExperiment.tsx
+│   │   ├── LinearDepthExperiment.tsx
+│   │   ├── EmbeddingExperiment.tsx
+│   │   └── GeneralizationExperiment.tsx
+│   ├── components/             # Navbar, Hero, ExperimentCard, Footer
+│   └── experiments/relu/       # dataset + math/RNG helpers
+├── public/
+├── netlify.toml                # deploy config
+└── vite.config.ts
+```
+
+## Deployment
+
+Deployed on Netlify at **https://riyaagraharidev.netlify.app/**. Build settings
+(`netlify.toml`): build command `npm run build`, publish directory `dist`, with an
+SPA redirect so client-side routes resolve on refresh.
