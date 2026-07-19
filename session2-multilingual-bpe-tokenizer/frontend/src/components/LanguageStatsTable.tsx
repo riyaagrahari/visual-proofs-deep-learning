@@ -11,15 +11,15 @@ export function LanguageStatsTable({ stats }: { stats: StatisticsResponse }) {
   const max = Math.max(...ratios);
 
   return (
-    <Card title="Language statistics" subtitle="Xi = total tokens ÷ total words (fertility), per language">
+    <Card title="Language statistics" subtitle="Fertility = total tokens ÷ faithful units, per language">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[480px] text-left text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
               <th className="py-2 pr-4 font-medium">Language</th>
               <th className="py-2 pr-4 font-medium">Total tokens</th>
-              <th className="py-2 pr-4 font-medium">Total words</th>
-              <th className="py-2 pr-4 font-medium">Xi (ratio)</th>
+              <th className="py-2 pr-4 font-medium">Faithful units</th>
+              <th className="py-2 pr-4 font-medium">Fertility</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">

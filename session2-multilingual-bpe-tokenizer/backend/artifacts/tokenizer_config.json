@@ -1,39 +1,29 @@
 {
-  "target_vocab_size": 10000,
-  "achieved_vocab_size": 10000,
-  "languages": [
-    "en",
-    "hi",
-    "te",
-    "ta"
-  ],
-  "alpha": 0.3,
-  "language_boosts": {
-    "en": 3.0,
-    "te": 1.5
+  "model": "HuggingFace BPE",
+  "vocab_size": 10000,
+  "languages": {
+    "en": "English",
+    "hi": "Hindi",
+    "te": "Telugu",
+    "ta": "Tamil"
   },
-  "num_merges": 9699,
-  "training_seconds": 2.85,
-  "language_stats": {
-    "en": {
-      "num_documents": 1,
-      "raw_word_count": 12296,
-      "weight": 2.5348
-    },
-    "hi": {
-      "num_documents": 1,
-      "raw_word_count": 9203,
-      "weight": 1.0349
-    },
-    "te": {
-      "num_documents": 1,
-      "raw_word_count": 3157,
-      "weight": 3.2828
-    },
-    "ta": {
-      "num_documents": 1,
-      "raw_word_count": 12643,
-      "weight": 0.8286
-    }
-  }
+  "weights": {
+    "en": 2,
+    "hi": 3,
+    "te": 5,
+    "ta": 3
+  },
+  "normalizer": "NFKC",
+  "pre_tokenizer": "Metaspace(▁)",
+  "decoder": "Metaspace(▁)",
+  "variant": "wiki_faithful_markdown",
+  "ratios": {
+    "en": 0.6501078175790931,
+    "hi": 0.6653312056496792,
+    "te": 0.6776424556376061,
+    "ta": 0.6573124082014752
+  },
+  "spread": 0.027534638058512972,
+  "score": 36317.89159076405,
+  "unit_policy": "Counts each contiguous Unicode letter/mark/number run as one unit and each visible non-space punctuation/symbol character as one unit."
 }

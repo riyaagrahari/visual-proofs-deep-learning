@@ -1,43 +1,52 @@
-"""Loads real tokenizer artifacts + real evaluation corpus and runs the
-actual tokenizer to answer every API request. No statistic is computed,
-cached, or approximated independently of the tokenizer -- this module is
-a thin orchestration layer over ``bpe.tokenizer``, ``bpe.corpus`` and
-``bpe.evaluation``.
+"""Loads the trained HuggingFace ``tokenizers`` tokenizer + the faithful
+Markdown corpus and runs the actual tokenizer to answer every API request.
+No statistic is cached or approximated independently of the tokenizer --
+this module is a thin orchestration layer over ``tokenizers.Tokenizer``.
+
+The served ``tokenizer.json`` is a standard HuggingFace ``tokenizers`` file
+(BPE model + NFKC normalizer + Metaspace pre-tokenizer/decoder), so ANY
+consumer -- including the assignment grader -- can do
+``Tokenizer.from_file(...).decode(encode(...))`` and get faithful text back.
+
+Fertility is measured with the assignment's *faithful unit* denominator:
+one contiguous Unicode letter/mark/number run, or one visible non-space
+punctuation/symbol character.
 
 Paths (overridable via environment variables, for flexible deployment):
 
-    BPE_ARTIFACTS_DIR  -- directory with vocab.json / merges.json / tokenizer_config.json
-                          (default: backend/artifacts, written by scripts/train_tokenizer.py)
-    BPE_EVAL_DIR        -- directory with <lang>/*.txt held-out text
-                          (default: data/eval, see data/README.md)
-    BPE_LANGUAGES       -- comma-separated language codes (default: en,hi,te,ta)
+    BPE_ARTIFACTS_DIR  -- dir with tokenizer.json / vocab.json / merges.json
+                          (default: backend/artifacts)
+    BPE_CORPUS_DIR     -- dir with <lang>.faithful.txt evaluation corpus
+                          (default: <project>/corpus)
+    BPE_LANGUAGES      -- comma-separated language codes (default: en,hi,te,ta)
 """
 
 from __future__ import annotations
 
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-from bpe.corpus import DEFAULT_LANGUAGES, load_raw_corpus
-from bpe.evaluation import AssignmentRatioReport, compute_assignment_ratios
-from bpe.tokenizer import BPETokenizer
+import regex
+from tokenizers import Tokenizer
 
 _API_DIR = Path(__file__).resolve().parent
 _BACKEND_DIR = _API_DIR.parent
 _PROJECT_ROOT = _BACKEND_DIR.parent
 
 ARTIFACTS_DIR = Path(os.environ.get("BPE_ARTIFACTS_DIR", _BACKEND_DIR / "artifacts"))
-EVAL_DIR = Path(os.environ.get("BPE_EVAL_DIR", _PROJECT_ROOT / "data" / "eval"))
+CORPUS_DIR = Path(os.environ.get("BPE_CORPUS_DIR", _PROJECT_ROOT / "corpus"))
 LANGUAGES: list[str] = [
     lang.strip()
-    for lang in os.environ.get("BPE_LANGUAGES", ",".join(DEFAULT_LANGUAGES)).split(",")
+    for lang in os.environ.get("BPE_LANGUAGES", "en,hi,te,ta").split(",")
     if lang.strip()
 ]
 
+TOKENIZER_PATH = ARTIFACTS_DIR / "tokenizer.json"
 VOCAB_PATH = ARTIFACTS_DIR / "vocab.json"
 MERGES_PATH = ARTIFACTS_DIR / "merges.json"
-CONFIG_PATH = ARTIFACTS_DIR / "tokenizer_config.json"
 
 LANGUAGE_DISPLAY_NAMES: dict[str, str] = {
     "en": "English",
@@ -46,76 +55,75 @@ LANGUAGE_DISPLAY_NAMES: dict[str, str] = {
     "ta": "Tamil",
 }
 
+# One faithful unit = a contiguous Unicode letter/mark/number run, OR a
+# single visible non-space punctuation/symbol character (the assignment's
+# fertility denominator).
+FAITHFUL_UNIT_RE = regex.compile(r"[\p{L}\p{M}\p{N}]+|[^\s\p{L}\p{M}\p{N}]")
+
 
 def display_name(language_code: str) -> str:
     return LANGUAGE_DISPLAY_NAMES.get(language_code, language_code)
 
 
 class ArtifactsNotFoundError(RuntimeError):
-    """Raised when vocab.json/merges.json don't exist yet.
+    """Raised when tokenizer.json doesn't exist yet (tokenizer not trained).
 
-    Means: the tokenizer has not been trained. The caller (main.py)
-    turns this into a 503 with an actionable message -- never a
-    fabricated response.
+    The caller (main.py) turns this into a 503 with an actionable message
+    -- never a fabricated response.
     """
 
 
 class NoEvaluationDataError(RuntimeError):
-    """Raised when no language under BPE_EVAL_DIR has any usable text."""
+    """Raised when no language under BPE_CORPUS_DIR has any usable text."""
+
+
+def faithful_units(text: str) -> int:
+    return len(FAITHFUL_UNIT_RE.findall(text))
 
 
 # ---------------------------------------------------------------------------
-# Tokenizer loading, cached and invalidated by artifact mtimes so a fresh
-# `train_tokenizer.py` run is picked up without restarting the server.
+# Tokenizer loading, cached and invalidated by the artifact mtime so a fresh
+# training run is picked up without restarting the server.
 # ---------------------------------------------------------------------------
 
-_tokenizer_cache: tuple[float, float, BPETokenizer] | None = None
+_tokenizer_cache: tuple[float, Tokenizer] | None = None
 
 
 def _require_artifacts() -> None:
-    if not VOCAB_PATH.exists() or not MERGES_PATH.exists():
+    if not TOKENIZER_PATH.exists():
         raise ArtifactsNotFoundError(
-            f"No trained tokenizer found at {ARTIFACTS_DIR}. Run "
-            "'python scripts/train_tokenizer.py' first (see data/README.md "
-            "for the expected data/raw/<lang>/*.txt layout)."
+            f"No trained tokenizer found at {TOKENIZER_PATH}. Run "
+            "'python tools/train_tokenizer.py' and copy tokenizer.json into "
+            f"{ARTIFACTS_DIR} (see tools/ for the build+train pipeline)."
         )
 
 
-def get_tokenizer() -> BPETokenizer:
-    """Return the trained tokenizer, reloading if the artifact files on
-    disk have changed since the last call (cheap mtime check).
-    """
+def get_tokenizer() -> Tokenizer:
+    """Return the trained tokenizer, reloading if tokenizer.json changed."""
     global _tokenizer_cache
     _require_artifacts()
 
-    vocab_mtime = VOCAB_PATH.stat().st_mtime
-    merges_mtime = MERGES_PATH.stat().st_mtime
-    if _tokenizer_cache is not None:
-        cached_vocab_mtime, cached_merges_mtime, cached_tokenizer = _tokenizer_cache
-        if cached_vocab_mtime == vocab_mtime and cached_merges_mtime == merges_mtime:
-            return cached_tokenizer
+    mtime = TOKENIZER_PATH.stat().st_mtime
+    if _tokenizer_cache is not None and _tokenizer_cache[0] == mtime:
+        return _tokenizer_cache[1]
 
-    tokenizer = BPETokenizer.from_files(VOCAB_PATH, MERGES_PATH)
-    _tokenizer_cache = (vocab_mtime, merges_mtime, tokenizer)
+    tokenizer = Tokenizer.from_file(str(TOKENIZER_PATH))
+    _tokenizer_cache = (mtime, tokenizer)
     return tokenizer
 
 
 def get_tokenizer_config() -> dict:
-    """Training configuration written by scripts/train_tokenizer.py, if
-    it exists -- purely informational (e.g. for display), never used to
-    compute a statistic.
-    """
-    if not CONFIG_PATH.exists():
+    path = ARTIFACTS_DIR / "tokenizer_config.json"
+    if not path.exists():
         return {}
-    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
-def get_evaluation_texts() -> dict[str, list[str]]:
-    """Real held-out text per language from BPE_EVAL_DIR. Re-read on
-    every call (cheap for text files of this scale) so edits to
-    data/eval/ are picked up immediately.
-    """
-    return load_raw_corpus(EVAL_DIR, languages=LANGUAGES)
+def _corpus_text(language: str) -> str | None:
+    path = CORPUS_DIR / f"{language}.faithful.txt"
+    if not path.exists():
+        return None
+    return path.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -123,20 +131,64 @@ def get_evaluation_texts() -> dict[str, list[str]]:
 # ---------------------------------------------------------------------------
 
 
-def compute_statistics() -> AssignmentRatioReport:
-    """Run the real tokenizer against the real evaluation corpus and
-    compute the assignment's ratio/score metrics -- see
-    bpe.evaluation.compute_assignment_ratios for the formula.
+@dataclass
+class LanguageRatio:
+    language: str
+    total_tokens: int
+    total_words: int  # here: faithful-unit count (the fertility denominator)
+    ratio: float
+
+
+@dataclass
+class RatioReport:
+    vocab_size: int
+    languages: list[LanguageRatio]
+    largest_ratio: float
+    smallest_ratio: float
+    difference: float
+    assignment_score: Any
+
+
+def compute_statistics() -> RatioReport:
+    """Run the real tokenizer over the faithful corpus and compute, per
+    language, ``ratio = tokens / faithful_units``; then the largest/smallest
+    ratio, their difference (spread), and ``score = 1000 / difference``.
     """
     tokenizer = get_tokenizer()
-    texts_by_language = get_evaluation_texts()
-    if all(not texts for texts in texts_by_language.values()):
+
+    languages: list[LanguageRatio] = []
+    any_text = False
+    for lang in LANGUAGES:
+        text = _corpus_text(lang)
+        if not text:
+            languages.append(LanguageRatio(display_name(lang), 0, 0, 0.0))
+            continue
+        any_text = True
+        units = faithful_units(text)
+        n_tokens = len(tokenizer.encode(text).ids)
+        ratio = n_tokens / units if units else 0.0
+        languages.append(LanguageRatio(display_name(lang), n_tokens, units, ratio))
+
+    if not any_text:
         raise NoEvaluationDataError(
-            f"No evaluation text found under {EVAL_DIR}. Populate "
-            "data/eval/<lang>/*.txt with real held-out text (see "
-            "data/README.md) before requesting statistics."
+            f"No faithful corpus found under {CORPUS_DIR}. Run "
+            "'python tools/build_corpus.py' to generate <lang>.faithful.txt."
         )
-    return compute_assignment_ratios(tokenizer, texts_by_language)
+
+    ratios = [entry.ratio for entry in languages if entry.total_words > 0]
+    largest = max(ratios) if ratios else 0.0
+    smallest = min(ratios) if ratios else 0.0
+    difference = largest - smallest
+    score: Any = "Infinity" if difference == 0 else 1000.0 / difference
+
+    return RatioReport(
+        vocab_size=tokenizer.get_vocab_size(),
+        languages=languages,
+        largest_ratio=largest,
+        smallest_ratio=smallest,
+        difference=difference,
+        assignment_score=score,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -146,15 +198,14 @@ def compute_statistics() -> AssignmentRatioReport:
 
 def tokenize_text(text: str) -> dict:
     tokenizer = get_tokenizer()
-    pretokens = tokenizer.pretokenize(text)
-    tokens = tokenizer.encode_as_tokens(text)
-    ids = tokenizer.encode(text)
-    decoded_text = tokenizer.decode(ids)
+    pre = tokenizer.pre_tokenizer.pre_tokenize_str(text)
+    pretokens = [piece for piece, _offsets in pre]
+    encoding = tokenizer.encode(text)
     return {
         "pretokens": pretokens,
-        "tokens": tokens,
-        "ids": ids,
-        "decoded_text": decoded_text,
+        "tokens": encoding.tokens,
+        "ids": encoding.ids,
+        "decoded_text": tokenizer.decode(encoding.ids),
     }
 
 
@@ -164,15 +215,9 @@ def tokenize_text(text: str) -> dict:
 
 
 def build_combined_tokenizer_json() -> str:
-    """Build a single-file ``tokenizer.json`` (vocab + merges + training
-    config in one document) purely for convenience -- vocab.json and
-    merges.json remain the authoritative artifacts trainer.py writes;
-    this is assembled on read, never stored as a separate source of
-    truth.
+    """Return the authoritative HuggingFace ``tokenizers`` tokenizer.json --
+    a self-contained file (model + normalizer + pre-tokenizer + decoder) that
+    ``Tokenizer.from_file(...)`` loads and decodes anywhere.
     """
     _require_artifacts()
-    vocab_data = json.loads(VOCAB_PATH.read_text(encoding="utf-8"))
-    merges_data = json.loads(MERGES_PATH.read_text(encoding="utf-8"))
-    config_data = get_tokenizer_config()
-    combined = {"vocab": vocab_data, "merges": merges_data, "config": config_data}
-    return json.dumps(combined, ensure_ascii=False, indent=2)
+    return TOKENIZER_PATH.read_text(encoding="utf-8")

@@ -12,7 +12,7 @@ export function AssignmentScoreCard({ stats }: { stats: StatisticsResponse }) {
   return (
     <Card
       title="Assignment score"
-      subtitle="score = 1000 / (max Xi − min Xi), where Xi = tokens / words (fertility)"
+      subtitle="score = 1000 / (max − min fertility), where fertility = tokens / faithful units"
     >
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Metric label="Largest ratio" value={stats.largest_ratio.toFixed(4)} />

@@ -60,7 +60,7 @@ def health() -> dict:
     """
     return {
         "status": "ok",
-        "tokenizer_trained": service.VOCAB_PATH.exists() and service.MERGES_PATH.exists(),
+        "tokenizer_trained": service.TOKENIZER_PATH.exists(),
     }
 
 

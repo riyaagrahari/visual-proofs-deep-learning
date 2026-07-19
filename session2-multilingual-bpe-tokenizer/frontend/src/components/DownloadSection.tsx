@@ -7,13 +7,13 @@ const DOWNLOADS: { file: DownloadFile; label: string; description: string }[] = 
   {
     file: "tokenizer.json",
     label: "tokenizer.json",
-    description: "vocab + merges + training config, combined",
+    description: "HuggingFace tokenizers file — load with Tokenizer.from_file() and encode/decode",
   },
 ];
 
 export function DownloadSection() {
   return (
-    <Card title="Download the tokenizer" subtitle="Straight from backend/artifacts/ — nothing regenerated">
+    <Card title="Download the tokenizer" subtitle="Standard HuggingFace tokenizers artifacts from backend/artifacts/">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {DOWNLOADS.map(({ file, label, description }) => (
           <a

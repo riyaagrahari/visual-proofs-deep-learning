@@ -5,8 +5,10 @@
 export interface LanguageStatistics {
   language: string;
   total_tokens: number;
+  /** Faithful-unit count: contiguous letter/mark/number runs + each visible
+   * non-space punctuation/symbol char (the assignment's fertility denominator). */
   total_words: number;
-  /** Xi = total_tokens / total_words (fertility, tokens per word). */
+  /** Fertility = total_tokens / faithful units. */
   ratio: number;
 }
 

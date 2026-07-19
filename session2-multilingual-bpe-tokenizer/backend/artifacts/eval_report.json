@@ -1,63 +1,37 @@
 {
-  "vocab_size": 10000,
-  "per_language": {
-    "en": {
-      "language": "en",
-      "num_documents": 1,
-      "num_words": 10401,
-      "num_tokens": 12134,
-      "fertility": 1.1666185943659264,
-      "num_unk_tokens": 0,
-      "unk_rate": 0.0,
-      "num_chars": 64917,
-      "compression_ratio": 0.21610672088975152,
-      "roundtrip_mismatches": 0,
-      "roundtrip_ok": true,
-      "vocab_utilization": 0.3278
-    },
-    "hi": {
-      "language": "hi",
-      "num_documents": 1,
-      "num_words": 8131,
-      "num_tokens": 12316,
-      "fertility": 1.514696839257164,
-      "num_unk_tokens": 0,
-      "unk_rate": 0.0,
-      "num_chars": 43525,
-      "compression_ratio": 0.3078460654796094,
-      "roundtrip_mismatches": 0,
-      "roundtrip_ok": true,
-      "vocab_utilization": 0.1431
-    },
-    "te": {
-      "language": "te",
-      "num_documents": 1,
-      "num_words": 2508,
-      "num_tokens": 4251,
-      "fertility": 1.694976076555024,
-      "num_unk_tokens": 0,
-      "unk_rate": 0.0,
-      "num_chars": 19787,
-      "compression_ratio": 0.24778895234244705,
-      "roundtrip_mismatches": 0,
-      "roundtrip_ok": true,
-      "vocab_utilization": 0.151
-    },
-    "ta": {
-      "language": "ta",
-      "num_documents": 1,
-      "num_words": 10685,
-      "num_tokens": 19183,
-      "fertility": 1.7953205428170331,
-      "num_unk_tokens": 0,
-      "unk_rate": 0.0,
-      "num_chars": 93175,
-      "compression_ratio": 0.22689562650925676,
-      "roundtrip_mismatches": 0,
-      "roundtrip_ok": true,
-      "vocab_utilization": 0.2046
-    }
+  "variant": "wiki_faithful_markdown",
+  "languages": {
+    "en": "English",
+    "hi": "Hindi",
+    "te": "Telugu",
+    "ta": "Tamil"
   },
-  "fertility_balance_score": 0.6287019484511067,
-  "generated_at": "2026-07-10T12:38:44.070062+00:00"
+  "weights": {
+    "en": 2,
+    "hi": 3,
+    "te": 5,
+    "ta": 3
+  },
+  "vocab_size": 10000,
+  "faithful_units": {
+    "en": 186426,
+    "hi": 88359,
+    "te": 36292,
+    "ta": 185869
+  },
+  "unit_policy": "Counts each contiguous Unicode letter/mark/number run as one unit and each visible non-space punctuation/symbol character as one unit.",
+  "token_counts": {
+    "en": 121197,
+    "hi": 58788,
+    "te": 24593,
+    "ta": 122174
+  },
+  "ratios": {
+    "en": 0.6501078175790931,
+    "hi": 0.6653312056496792,
+    "te": 0.6776424556376061,
+    "ta": 0.6573124082014752
+  },
+  "spread": 0.027534638058512972,
+  "score": 36317.89159076405
 }

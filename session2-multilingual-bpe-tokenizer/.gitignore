@@ -14,3 +14,9 @@ __pycache__/
 # build cache / local corpus backup
 *.tsbuildinfo
 data/_corpus_backup/
+
+# Large, regenerable raw Wikipedia HTML (tools/build_corpus.py); only the
+# faithful .txt/.md snapshots are committed for reproducibility.
+corpus/*.raw.html
+# Scratch training output (authoritative copies live in backend/artifacts/).
+tools/out/
